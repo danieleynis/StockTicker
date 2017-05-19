@@ -1,0 +1,190 @@
+<!-- 
+Author: Daniel Eynis
+Full Stack Web Development Project
+Professor: Simon Niklaus
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=0" />
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.3/css/bootstrap.min.css" integrity="sha384-MIwDKRSSImVFAZCVLtU0LMDdON6KVCrZHyVQQj6e8wIEJkW4tvwqXrbMIya1vriY" crossorigin="anonymous">
+	</head>
+
+	<style>
+  		#sortable .card {
+			width:200px;
+			height:250px;
+			margin: 5px;
+			padding: 20px;
+			float: left;
+		}
+
+		.display-4 {
+			padding: 20px 0 10px 5px
+		}
+
+		.closeBtn {
+			float: right;
+			display: inline-block
+		}
+
+		body {
+			padding-bottom: 30px
+		}
+	</style>
+
+	<body style='background-color: #f4f4f4'>
+		<div class='container'>
+			<h1 class='display-4'>Stock Ticker</h1>
+			<div class='form-group row' style='padding-left: 5px'>
+				<div class='input-group'>
+					<div class='col-sm-3'>
+						<input id='symbol' class='form-control form-control-lg' type='text' maxlength='10' placeholder='AAPL, TSLA, YHOO...'>
+					</div>
+					<div class='col-sm-2'>
+						<button id='add' class='btn btn-lg btn-primary' type='button'>Add to watchlist</button>
+					</div>
+				</div>
+			</div>
+			<div id='sortable'>
+			</div>
+		</div>
+		<div class="modal" id="modalChart" aria-hidden="true">
+			<div class="modal-dialog modal-lg">
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+						  <span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					<div class="modal-body">
+						<div id="stockChart" style="height: 400px"></div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.0.0/jquery.min.js" integrity="sha384-THPy051/pYDQGanwU6poAc/hOdQxjnOEXzbT+OuUAFqNqFjL+4IGLBgCJC3ZOShY" crossorigin="anonymous"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.2.0/js/tether.min.js" integrity="sha384-Plbmg8JY28KFelvJVai01l8WyZzrYWG825m+cZ0eDDS1f7d/js6ikvy1+X+guPIB" crossorigin="anonymous"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.3/js/bootstrap.min.js" integrity="sha384-ux8v3A6CPtOTqOzMKiuo3d/DomGaaClxFYdCu2HPMBEkf6x2xiDyJ7gkXU0MWwaD" crossorigin="anonymous"></script>
+		<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
+		<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
+		<script src="https://code.highcharts.com/stock/highstock.js"></script>
+		<script src="https://code.highcharts.com/stock/modules/exporting.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.14.1/moment.min.js"></script>
+
+		<script type='text/javascript'>
+			$(function(){
+				//makes stock cards sortable using jQuery UI
+				$('#sortable').sortable();
+				$('#sortable').disableSelection();
+				updateStocks(); //call update stocks method
+
+				var addedStocks = [];
+
+				//When user wants to add a stock to list
+				$('#add').on('click', function(){
+					var sym = [$('#symbol').val().toUpperCase()];
+					
+					if(addedStocks.indexOf(sym[0]) === -1){
+						$.get('/search', {stock: sym, chart: false}, function(data){ //get the data from the Node.js server
+							if(data === 'no_data'){
+								alert('Error: no such stock symbol exists!');
+							}
+							else{
+								addedStocks.push(sym[0]);
+								var stockInfo = JSON.parse(data);
+								//create html to be inserted
+								innerClose = '<button class="closeBtn btn btn-default btn-sm" aria-label="close">&times;</button>'
+								innerDivTitle = '<h2 class="card-title">' + stockInfo[0].t + '</h2>';
+								innerDivPrice = '<h3 class="card-text">' + stockInfo[0].l + '</h3>';
+								innerDivChng = '<h3 class="card-text">' + stockInfo[0].c + '</h3>';
+								innerDivChngP = '<h3 class="card-text">' + stockInfo[0].cp + '</h3>';
+								innerButton = "<button class='btn btn-primary chartBtn' type='button' data-toggle='modal' data-target='#modalChart' style='position: absolute; bottom: 20px'>View chart</button>"
+								finalDiv = '<div id="' + stockInfo[0].t + '" class="card card-block stock">' 
+										  + innerClose + innerDivTitle + innerDivPrice + innerDivChng + innerDivChngP + innerButton + '</div>';
+								
+								$('#sortable').prepend(finalDiv);
+
+								$('#' + stockInfo[0].t).children('.chartBtn').on('click', function(){ //"View chart" event listener
+									$('#stockChart').empty();
+									updateStockChart($(this).parent().attr('id'));
+								});
+
+								$('#' + stockInfo[0].t).children('.closeBtn').on('click', function(){ //remove stock card event listener
+									var index = addedStocks.indexOf($(this).parent().attr('id'));
+									if(index > -1){
+										addedStocks.splice(index, 1);
+									}
+									$(this).parent().remove();	
+								});
+							}
+						});
+					}
+					else{
+						alert('This stock symbol has already been added');
+					}
+				});
+				
+				function updateStocks(){
+					setInterval(getAndUpdateData, 5000);
+				}
+
+				function getAndUpdateData(){
+					if(addedStocks.length > 0 && typeof(addedStocks) !== undefined){
+						$.get('/search', {stock: addedStocks, chart: false}, function(data){ //get new stock batch data
+							var stockInfo = JSON.parse(data);
+							$.each(stockInfo, function(index, curStock){ //update each stock card with new data
+								var curElem = $('#' + curStock.t);
+								var prevPrice = parseFloat(curElem.children().eq(2).text());
+
+								curElem.children().eq(2).text(curStock.l);
+								curElem.children().eq(3).text(curStock.c);
+								curElem.children().eq(4).text(curStock.cp);
+								
+								if(parseFloat(curStock.l) > prevPrice){
+									curElem.css('background-color', '#ADC4A2');
+								}
+								else if(parseFloat(curStock.l) < prevPrice){
+									curElem.css('background-color', '#BC6772');
+								}
+								curElem.animate({
+									'background-color': 'white'
+								}, 1000);
+							});
+						});
+					}
+				}
+
+				function updateStockChart(stockID){ //update chart data for selected stock
+					$.get('/search', {stock: [stockID], chart: true}, function(data){ //get historical chart data
+						$('#stockChart').highcharts('StockChart', { //set Highchart stock with that data
+							plotOptions: {
+								turboThreshold: 0
+							},
+							
+							rangeSelector: {
+								selected: 1
+							},
+
+							title: {
+								text : stockID + ' Stock Price'
+							},
+
+							series: [{
+								name : stockID,
+								data : data,
+								tooltip: {
+									valueDecimals: 2
+								}
+							}]
+						});
+					
+					});
+				}
+			});
+		</script>
+	</body>
+</html>
