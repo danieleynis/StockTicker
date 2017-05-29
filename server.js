@@ -1,12 +1,12 @@
 /*
 Author: Daniel Eynis
-Full Stack Web Development Project
 */
 
 var express = require('express');
 var request = require('request');
 var moment = require('moment');
 var server = express();
+var config = require('./config.js');
 
 var stockChartData = {};
 
@@ -40,7 +40,7 @@ server.get('/search', (req, res) => { //when data is requested by client
 		var yrAgo = moment(curTime).subtract(1, 'years').format('YYYY-MM-DD');  //get date 1 year ago from now
 
 		if(stockChartData[query[0]] === undefined){
-			var url = 'https://www.quandl.com/api/v3/datasets/WIKI/' + query[0] + '.json?column_index=0&column_index=4&api_key=YOUR_API_KEY'
+			var url = 'https://www.quandl.com/api/v3/datasets/WIKI/' + query[0] + '.json?column_index=0&column_index=4&api_key=' + config['api_key']
 							+ '&start_date=' + yrAgo + '&end_date=' + curDate; //get info from quandle
 
 			request.get(url, (err, response, body) => { //make the request
